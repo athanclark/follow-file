@@ -1,3 +1,0 @@
-module Mer.Internal
-    (
-    ) where
