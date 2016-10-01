@@ -6,7 +6,7 @@ License:                BSD3
 License-File:           LICENSE
 Synopsis:               Block thread until a file stops being modified
 Description:
-    See the README.md
+    See module for docs
 Cabal-Version:          >= 1.10
 Build-Type:             Simple
 
