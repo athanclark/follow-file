@@ -1,0 +1,23 @@
+Name:                   fileneglect
+Version:                0.0.0
+Author:                 Athan Clark <athan.clark@gmail.com>
+Maintainer:             Athan Clark <athan.clark@gmail.com>
+License:                BSD3
+License-File:           LICENSE
+-- Synopsis:
+-- Description:
+Cabal-Version:          >= 1.10
+Build-Type:             Simple
+
+Executable fileneglect
+  Default-Language:     Haskell2010
+  Hs-Source-Dirs:       src
+  Ghc-Options:          -Wall -threaded
+  Main-Is:              Mer.hs
+  Build-Depends:        base >= 4.8
+                      , hinotify
+                      , stm
+
+Source-Repository head
+  Type:                 git
+--  Location:
