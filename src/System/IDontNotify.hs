@@ -34,7 +34,6 @@ neglectFile file time = do
     e' <- atomically $ do
       modifyTVar expectation (+1)
       readTVar expectation
-    print e
     threadDelay time
     e'' <- readTVarIO expectation
     when (e' == e'') $
