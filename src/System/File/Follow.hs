@@ -11,6 +11,9 @@ import qualified Data.ByteString.Lazy.Internal as LBS
 import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.UTF8 as BS8
 import qualified Data.Vector as V
+import qualified Data.Text as T
+import Data.Attoparsec.Text (parseOnly, endOfInput)
+import Data.Attoparsec.Path (relFilePath)
 import Control.Monad (when)
 import Control.Exception (bracket)
 import Path (Path, Abs, File, filename, parent, toFilePath, parseRelFile)
@@ -55,12 +58,20 @@ follow inotify file f = do
       stop = do
         writeIORef positionRef 0
         f mempty
-  addWatch inotify [Modify, Create, Delete] (toFilePath $ parent file) $ \e -> case e of
-    Created {filePath} | parseRelFile filePath == Just (filename file) -> go
-                       | otherwise -> pure ()
-    Deleted {filePath} | parseRelFile filePath == Just (filename file) -> stop
-                       | otherwise -> pure ()
-    Modified {maybeFilePath} | ( maybeFilePath >>= parseRelFile
-                               ) == Just (filename file) -> go
-                             | otherwise -> pure ()
-    _ -> pure ()
+  addWatch inotify [Modify, Create, Delete] (toFilePath $ parent file) $ \e ->
+    let isFile filePath = parseOnly (relFilePath <* endOfInput) (T.pack filePath) == Right (filename file)
+    in  case e of
+          Created {filePath}  | isFile filePath -> go
+                              | otherwise -> pure ()
+          Deleted {filePath}  | isFile filePath -> stop
+                              | otherwise -> pure ()
+          Modified {maybeFilePath}  | (isFile <$> maybeFilePath) == Just True -> go
+                                    | otherwise -> pure ()
+          MovedIn {filePath}  | isFile filePath -> go
+                              | otherwise -> pure ()
+          MovedOut {filePath}   | isFile filePath -> go
+                                | otherwise -> pure ()
+          DeletedSelf -> error "containing folder deleted"
+          Unmounted -> error "containing folder unmounted"
+          QOverflow -> error "queue overflow"
+          _ -> pure ()

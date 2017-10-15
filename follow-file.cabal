@@ -1,5 +1,5 @@
 Name:                   follow-file
-Version:                0.0.1
+Version:                0.0.1.1
 Author:                 Athan Clark <athan.clark@gmail.com>
 Maintainer:             Athan Clark <athan.clark@gmail.com>
 License:                BSD3
@@ -18,10 +18,13 @@ Library
   GHC-Options:          -Wall
   Exposed-Modules:      System.File.Follow
   Build-Depends:        base >= 4.8 && < 5
+                      , attoparsec
+                      , attoparsec-path
                       , bytestring
                       , directory
                       , hinotify
                       , path
+                      , text
                       , unix
                       , utf8-string
                       , vector
