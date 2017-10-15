@@ -1,5 +1,7 @@
 {-# LANGUAGE
     ScopedTypeVariables
+  , NamedFieldPuns
+  , TupleSections
   #-}
 
 module System.File.Neglect where
@@ -7,58 +9,58 @@ module System.File.Neglect where
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import qualified Data.ByteString.Lazy.Internal as LBS
 import qualified Data.ByteString.Internal as BS
-import Control.Monad (void)
+import qualified Data.ByteString.UTF8 as BS8
+import qualified Data.Vector as V
+import Control.Monad (when)
 import Control.Exception (bracket)
-import Path (Path, Abs, File, parent, toFilePath)
-import System.FSNotify (withManager, watchDir, Event (..))
-import System.Posix.IO (fdReadBuf, openFd, OpenMode (ReadOnly), defaultFileFlags, closeFd, fdSeek)
+import Path (Path, Abs, File, filename, parent, toFilePath, parseRelFile)
+import System.Posix.IO.ByteString (fdReadBuf, openFd, OpenMode (ReadOnly), defaultFileFlags, closeFd, fdSeek)
 import System.Posix.Types (FileOffset)
-import System.Posix.Files (fileSize, getFileStatus)
+import System.Posix.Files.ByteString (fileSize, getFileStatus)
 import System.Directory (doesFileExist)
+import System.INotify (INotify, addWatch, Event (..), EventVariety (..), WatchDescriptor)
 import GHC.IO.Device (SeekMode (AbsoluteSeek))
 
 
 -- | Neglect takes a file, and only informs you when it changes. If it's deleted,
 -- | you're informed that nothing changed. If it doesn't exist yet, you'll be informed
 -- | on it's creation.
-neglect :: Path Abs File
+neglect :: INotify
+        -> Path Abs File
         -> (LBS.ByteString -> IO ())
-        -> IO ()
-neglect file f = do
+        -> IO WatchDescriptor
+neglect inotify file f = do
   let file' = toFilePath file
   exists <- doesFileExist file'
   (positionRef :: IORef FileOffset) <-
     if exists
-      then getFileStatus file' >>= (newIORef . fileSize)
+      then getFileStatus (BS8.fromString file') >>= (newIORef . fileSize)
       else newIORef 0
-  let go  = bracket (openFd file' ReadOnly Nothing defaultFileFlags)
+  let go  = bracket (openFd (BS8.fromString file') ReadOnly Nothing defaultFileFlags)
                     closeFd $ \fd -> do
               toSeek <- readIORef positionRef
-              idx <- fdSeek fd AbsoluteSeek (toSeek + fromIntegral LBS.defaultChunkSize)
+              idx <- fdSeek fd AbsoluteSeek toSeek
               writeIORef positionRef idx
               let loop acc = do
-                    c <- BS.createUptoN (fromIntegral LBS.defaultChunkSize) $ \ptr ->
-                      fromIntegral <$> fdReadBuf fd ptr (fromIntegral LBS.defaultChunkSize)
+                    c <- BS.createUptoN LBS.defaultChunkSize $ \ptr -> do
+                      seeked <- readIORef positionRef
+                      moreRead <- fdReadBuf fd ptr (fromIntegral LBS.defaultChunkSize)
+                      writeIORef positionRef (seeked + fromIntegral moreRead)
+                      pure (fromIntegral moreRead)
                     if c == mempty
-                      then pure mempty
-                      else loop (LBS.chunk c acc)
-              theRest <- loop mempty
-              f theRest
+                      then pure acc
+                      else loop (acc `V.snoc` c)
+              theRest <- loop V.empty
+              when (theRest /= V.empty) (f (foldr LBS.chunk mempty theRest))
       stop = do
         writeIORef positionRef 0
         f mempty
-  void $ withManager $ \mgr ->
-    watchDir
-      mgr
-      (toFilePath $ parent file)
-      (const True) $ \e ->
-        case e of
-          Added file'' _
-            | file'' == file' -> go
-            | otherwise -> pure ()
-          Modified file'' _
-            | file'' == file' -> go
-            | otherwise -> pure ()
-          Removed file'' _
-            | file'' == file' -> stop
-            | otherwise -> pure ()
+  addWatch inotify [Modify, Create, Delete] (toFilePath $ parent file) $ \e -> case e of
+    Created {filePath} | parseRelFile filePath == Just (filename file) -> go
+                       | otherwise -> pure ()
+    Deleted {filePath} | parseRelFile filePath == Just (filename file) -> stop
+                       | otherwise -> pure ()
+    Modified {maybeFilePath} | ( parseRelFile =<< maybeFilePath
+                               ) == Just (filename file) -> go
+                             | otherwise -> pure ()
+    _ -> pure ()

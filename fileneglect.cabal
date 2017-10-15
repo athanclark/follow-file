@@ -18,11 +18,23 @@ Library
   GHC-Options:          -Wall
   Exposed-Modules:      System.File.Neglect
   Build-Depends:        base >= 4.8 && < 5
-                      , fsnotify
+                      , hinotify
                       , path
                       , unix
                       , bytestring
                       , directory
+                      , utf8-string
+                      , vector
+
+Test-suite fileneglect-tests
+  Type:                exitcode-stdio-1.0
+  Default-Language:    Haskell2010
+  Hs-Source-Dirs:      test
+  Main-is:             Main.hs
+  Build-Depends:       base
+                     , fileneglect
+                     , path
+                     , hinotify
 
 Source-Repository head
   Type:                 git
