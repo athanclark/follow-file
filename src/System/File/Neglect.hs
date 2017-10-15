@@ -4,7 +4,7 @@
   , TupleSections
   #-}
 
-module System.File.Neglect where
+module System.File.Follow where
 
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import qualified Data.ByteString.Lazy.Internal as LBS
@@ -22,14 +22,14 @@ import System.INotify (INotify, addWatch, Event (..), EventVariety (..), WatchDe
 import GHC.IO.Device (SeekMode (AbsoluteSeek))
 
 
--- | Neglect takes a file, and only informs you when it changes. If it's deleted,
--- | you're informed that nothing changed. If it doesn't exist yet, you'll be informed
--- | on it's creation.
-neglect :: INotify
+-- | 'follow' takes a file, and informs you /only/ when it changes. If it's deleted,
+-- | you're notified with an empty 'Data.ByteString.ByteString'. If it doesn't exist yet, you'll be informed
+-- | of its entire contents upon it's creation, and will proceed to "follow it" as normal.
+follow :: INotify
         -> Path Abs File
         -> (LBS.ByteString -> IO ())
         -> IO WatchDescriptor
-neglect inotify file f = do
+follow inotify file f = do
   let file' = toFilePath file
   exists <- doesFileExist file'
   (positionRef :: IORef FileOffset) <-
@@ -51,7 +51,7 @@ neglect inotify file f = do
                       then pure acc
                       else loop (acc `V.snoc` c)
               theRest <- loop V.empty
-              when (theRest /= V.empty) (f (foldr LBS.chunk mempty theRest))
+              when (theRest /= V.empty) (f (V.foldr LBS.chunk mempty theRest))
       stop = do
         writeIORef positionRef 0
         f mempty
@@ -60,7 +60,7 @@ neglect inotify file f = do
                        | otherwise -> pure ()
     Deleted {filePath} | parseRelFile filePath == Just (filename file) -> stop
                        | otherwise -> pure ()
-    Modified {maybeFilePath} | ( parseRelFile =<< maybeFilePath
+    Modified {maybeFilePath} | ( maybeFilePath >>= parseRelFile
                                ) == Just (filename file) -> go
                              | otherwise -> pure ()
     _ -> pure ()
