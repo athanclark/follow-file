@@ -35,6 +35,7 @@ Test-suite filefollow-tests
                      , follow-file
                      , path
                      , hinotify
+                     , directory
 
 Source-Repository head
   Type:                 git
