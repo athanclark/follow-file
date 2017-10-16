@@ -3,6 +3,7 @@
   , NamedFieldPuns
   , TupleSections
   , Rank2Types
+  , FlexibleContexts
   #-}
 
 module System.File.Follow where
@@ -15,10 +16,11 @@ import qualified Data.Text as T
 import Data.Attoparsec.Text (parseOnly, endOfInput)
 import Data.Attoparsec.Path (relFilePath)
 import Data.Conduit (Producer, yield)
-import Control.Monad (when)
-import Control.Monad.IO.Class (liftIO)
-import Control.Exception (bracket)
-import Path (Path, Abs, File, filename, parent, toFilePath, parseRelFile)
+import Control.Monad (void)
+import Control.Monad.IO.Class (MonadIO (liftIO))
+import Control.Monad.Catch (MonadMask, bracket)
+import Control.Monad.Trans.Control (MonadBaseControl (liftBaseWith))
+import Path (Path, Abs, File, filename, parent, toFilePath)
 import System.Posix.IO.ByteString (fdReadBuf, openFd, OpenMode (ReadOnly), defaultFileFlags, closeFd, fdSeek)
 import System.Posix.Types (FileOffset)
 import System.Posix.Files.ByteString (fileSize, getFileStatus)
@@ -30,22 +32,26 @@ import GHC.IO.Device (SeekMode (AbsoluteSeek))
 -- | 'follow' takes a file, and informs you /only/ when it changes. If it's deleted,
 -- | you're notified with an empty 'Data.ByteString.ByteString'. If it doesn't exist yet, you'll be informed
 -- | of its entire contents upon it's creation, and will proceed to "follow it" as normal.
-follow :: INotify
-        -> Path Abs File
-        -> (Producer IO BS.ByteString -> IO ())
-        -> IO WatchDescriptor
+follow :: ( MonadIO m
+          , MonadMask m
+          , MonadBaseControl IO m
+          )
+       => INotify
+       -> Path Abs File
+       -> (Producer m BS.ByteString -> m ()) -- ^ Monadic state of @m@ is thrown away for each invocation, not synchronously interleaved.
+       -> m WatchDescriptor
 follow inotify file f = do
   let file' = toFilePath file
-  exists <- doesFileExist file'
-  (positionRef :: IORef FileOffset) <-
+  exists <- liftIO (doesFileExist file')
+  (positionRef :: IORef FileOffset) <- liftIO $
     if exists
       then getFileStatus (BS8.fromString file') >>= (newIORef . fileSize)
       else newIORef 0
-  let go  = bracket (openFd (BS8.fromString file') ReadOnly Nothing defaultFileFlags)
-                    closeFd $ \fd -> do
-              toSeek <- readIORef positionRef
-              idx <- fdSeek fd AbsoluteSeek toSeek
-              writeIORef positionRef idx
+  let go  = bracket (liftIO $ openFd (BS8.fromString file') ReadOnly Nothing defaultFileFlags)
+                    (liftIO . closeFd) $ \fd -> do
+              toSeek <- liftIO (readIORef positionRef)
+              idx <- liftIO (fdSeek fd AbsoluteSeek toSeek)
+              liftIO (writeIORef positionRef idx)
               let loop = do
                     c <- liftIO $ BS.createUptoN LBS.defaultChunkSize $ \ptr -> do
                       seeked <- readIORef positionRef
@@ -59,20 +65,20 @@ follow inotify file f = do
                         loop
               f loop
       stop = do
-        writeIORef positionRef 0
+        liftIO (writeIORef positionRef 0)
         f (yield mempty)
-  addWatch inotify [Modify, Create, Delete] (toFilePath $ parent file) $ \e ->
+  liftBaseWith $ \runInBase -> addWatch inotify [Modify, Create, Delete] (toFilePath $ parent file) $ \e ->
     let isFile filePath = parseOnly (relFilePath <* endOfInput) (T.pack filePath) == Right (filename file)
     in  case e of
-          Created {filePath}  | isFile filePath -> go
+          Created {filePath}  | isFile filePath -> void $ runInBase go
                               | otherwise -> pure ()
-          Deleted {filePath}  | isFile filePath -> stop
+          Deleted {filePath}  | isFile filePath -> void $ runInBase stop
                               | otherwise -> pure ()
-          Modified {maybeFilePath}  | (isFile <$> maybeFilePath) == Just True -> go
+          Modified {maybeFilePath}  | (isFile <$> maybeFilePath) == Just True -> void $ runInBase go
                                     | otherwise -> pure ()
-          MovedIn {filePath}  | isFile filePath -> go
+          MovedIn {filePath}  | isFile filePath -> void $ runInBase go
                               | otherwise -> pure ()
-          MovedOut {filePath}   | isFile filePath -> go
+          MovedOut {filePath}   | isFile filePath -> void $ runInBase go
                                 | otherwise -> pure ()
           DeletedSelf -> error "containing folder deleted"
           Unmounted -> error "containing folder unmounted"

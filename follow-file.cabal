@@ -1,5 +1,5 @@
 Name:                   follow-file
-Version:                0.0.1.2
+Version:                0.0.2
 Author:                 Athan Clark <athan.clark@gmail.com>
 Maintainer:             Athan Clark <athan.clark@gmail.com>
 License:                BSD3
@@ -23,7 +23,9 @@ Library
                       , bytestring
                       , conduit
                       , directory
+                      , exceptions
                       , hinotify
+                      , monad-control
                       , mtl
                       , path
                       , text
