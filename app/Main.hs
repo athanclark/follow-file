@@ -3,6 +3,8 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Data.Text as T
 import Data.Attoparsec.Text (parseOnly, endOfInput, eitherP)
 import Data.Attoparsec.Path (absFilePath, relFilePath, absDirPath)
+import Data.Conduit ((=$=), runConduit)
+import Data.Conduit.Combinators (stdout)
 import System.INotify (initINotify, removeWatch, killINotify)
 import System.File.Follow (follow)
 import System.Directory (getCurrentDirectory)
@@ -25,4 +27,4 @@ main = do
                 Right d' ->
                   pure (d' </> r)
   i <- initINotify
-  bracket (follow i f BS.putStr) (\watch -> removeWatch watch >> killINotify i) $ \_ -> forever $ threadDelay 50000
+  bracket (follow i f (\source -> runConduit $ source =$= stdout)) (\watch -> removeWatch watch >> killINotify i) $ \_ -> forever $ threadDelay 50000
