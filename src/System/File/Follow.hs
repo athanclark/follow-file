@@ -12,10 +12,10 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import qualified Data.ByteString.Lazy.Internal as LBS
 import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.UTF8 as BS8
-import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.Attoparsec.Text (parseOnly, endOfInput)
 import Data.Attoparsec.Path (relFilePath)
-import Data.Conduit (Producer, yield)
+import Data.Conduit (ConduitT, yield)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Catch (MonadMask, bracket)
@@ -23,6 +23,7 @@ import Control.Monad.Trans.Control (MonadBaseControl (liftBaseWith))
 import Path (Path, Abs, File, filename, parent, toFilePath)
 import System.Posix.IO.ByteString (fdReadBuf, openFd, OpenMode (ReadOnly), defaultFileFlags, closeFd, fdSeek)
 import System.Posix.Types (FileOffset)
+import System.Posix.ByteString.FilePath (RawFilePath)
 import System.Posix.Files.ByteString (fileSize, getFileStatus)
 import System.Directory (doesFileExist)
 import System.INotify (INotify, addWatch, Event (..), EventVariety (..), WatchDescriptor)
@@ -38,7 +39,7 @@ follow :: ( MonadIO m
           )
        => INotify
        -> Path Abs File
-       -> (Producer m BS.ByteString -> m ()) -- ^ Monadic state of @m@ is thrown away for each invocation, not synchronously interleaved.
+       -> (ConduitT i BS.ByteString m () -> m ()) -- ^ Monadic state of @m@ is thrown away for each invocation, not synchronously interleaved.
        -> m WatchDescriptor
 follow inotify file f = do
   let file' = toFilePath file
@@ -67,19 +68,25 @@ follow inotify file f = do
       stop = do
         liftIO (writeIORef positionRef 0)
         f (yield mempty)
-  liftBaseWith $ \runInBase -> addWatch inotify [Modify, Create, Delete] (toFilePath $ parent file) $ \e ->
-    let isFile filePath = parseOnly (relFilePath <* endOfInput) (T.pack filePath) == Right (filename file)
+  liftBaseWith $ \runInBase -> addWatch inotify [Modify, Create, Delete] (BS8.fromString $ toFilePath $ parent file) $ \e ->
+    let isFile :: RawFilePath -> Bool
+        isFile filePath = parseOnly (relFilePath <* endOfInput) (T.decodeUtf8 filePath) == Right (filename file)
     in  case e of
-          Created {filePath}  | isFile filePath -> void $ runInBase go
-                              | otherwise -> pure ()
-          Deleted {filePath}  | isFile filePath -> void $ runInBase stop
-                              | otherwise -> pure ()
-          Modified {maybeFilePath}  | (isFile <$> maybeFilePath) == Just True -> void $ runInBase go
-                                    | otherwise -> pure ()
-          MovedIn {filePath}  | isFile filePath -> void $ runInBase go
-                              | otherwise -> pure ()
-          MovedOut {filePath}   | isFile filePath -> void $ runInBase go
-                                | otherwise -> pure ()
+          Created {filePath}
+            | isFile filePath -> void $ runInBase go
+            | otherwise -> pure ()
+          Deleted {filePath}
+            | isFile filePath -> void $ runInBase stop
+            | otherwise -> pure ()
+          Modified {maybeFilePath}
+            | (isFile <$> maybeFilePath) == Just True -> void $ runInBase go
+            | otherwise -> pure ()
+          MovedIn {filePath}
+            | isFile filePath -> void $ runInBase go
+            | otherwise -> pure ()
+          MovedOut {filePath}
+            | isFile filePath -> void $ runInBase go
+            | otherwise -> pure ()
           DeletedSelf -> error "containing folder deleted"
           Unmounted -> error "containing folder unmounted"
           QOverflow -> error "queue overflow"

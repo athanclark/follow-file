@@ -1,53 +1,73 @@
-Name:                   follow-file
-Version:                0.0.2
-Author:                 Athan Clark <athan.clark@gmail.com>
-Maintainer:             Athan Clark <athan.clark@gmail.com>
-License:                BSD3
-License-File:           LICENSE
-Synopsis:               Be notified when a file gets appended, solely with what was added.
-Description:
-    See module for docs
-Cabal-Version:          >= 1.10
-Build-Type:             Simple
-Category:               Filesystem
+-- This file has been generated from package.yaml by hpack version 0.21.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 2237e4036e920a20255f1af7b7256b4210fd90eddba2b0938e9df217cf29ccb7
 
+name:           follow-file
+version:        0.0.3
+synopsis:       Be notified when a file gets appended, solely with what was added. Warning - only works on linux and for files that are strictly appended, like log files.
+description:    Please see the README on Github at <https://github.com/athanclark/follow-file#readme>
+category:       Filesystem
+homepage:       https://github.com/athanclark/follow-file#readme
+bug-reports:    https://github.com/athanclark/follow-file/issues
+maintainer:     Athan Clark <athan.clark@gmail.com>
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
 
-Library
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       src
-  GHC-Options:          -Wall
-  Exposed-Modules:      System.File.Follow
-  Build-Depends:        base >= 4.8 && < 5
-                      , attoparsec
-                      , attoparsec-path
-                      , bytestring
-                      , conduit
-                      , directory
-                      , exceptions
-                      , hinotify
-                      , monad-control
-                      , mtl
-                      , path
-                      , text
-                      , unix
-                      , utf8-string
+source-repository head
+  type: git
+  location: https://github.com/athanclark/follow-file
 
-Executable follow-file
-  Default-Language:     Haskell2010
-  Hs-Source-Dirs:       app
-  Main-is:              Main.hs
-  Build-Depends:        base
-                      , bytestring
-                      , follow-file
-                      , path
-                      , text
-                      , attoparsec
-                      , attoparsec-path
-                      , hinotify
-                      , conduit
-                      , conduit-combinators
-                      , directory
+library
+  exposed-modules:
+      System.File.Follow
+  other-modules:
+      Paths_follow_file
+  hs-source-dirs:
+      src
+  ghc-options: -Wall
+  build-depends:
+      attoparsec
+    , attoparsec-path
+    , base >=4.11 && <5
+    , bytestring
+    , conduit
+    , directory
+    , exceptions
+    , hinotify >=0.4
+    , monad-control
+    , mtl
+    , path
+    , text
+    , unix
+    , utf8-string
+  default-language: Haskell2010
 
-Source-Repository head
-  Type:                 git
-  Location:             https://github.com/athanclark/follow-file
+executable follow-file
+  main-is: Main.hs
+  other-modules:
+      Paths_follow_file
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -threaded -rtsopts -Wall -with-rtsopts=-N
+  build-depends:
+      attoparsec
+    , attoparsec-path
+    , base
+    , bytestring
+    , conduit
+    , conduit-combinators
+    , directory
+    , exceptions
+    , follow-file
+    , hinotify
+    , monad-control
+    , mtl
+    , path
+    , text
+    , unix
+    , utf8-string
+  default-language: Haskell2010

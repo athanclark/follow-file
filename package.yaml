@@ -1,0 +1,52 @@
+name: follow-file
+version: 0.0.3
+synopsis: Be notified when a file gets appended, solely with what was added. Warning - only works on linux and for files that are strictly appended, like log files.
+description: Please see the README on Github at <https://github.com/athanclark/follow-file#readme>
+maintainer: Athan Clark <athan.clark@gmail.com>
+license: BSD3
+github: athanclark/follow-file
+category: Filesystem
+
+ghc-options: -Wall
+
+dependencies:
+  - base >= 4.11 && < 5
+  - attoparsec
+  - attoparsec-path
+  - bytestring
+  - conduit
+  - directory
+  - exceptions
+  - hinotify >= 0.4
+  - monad-control
+  - mtl
+  - path
+  - text
+  - unix
+  - utf8-string
+
+library:
+  source-dirs: src
+
+executables:
+  follow-file:
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -Wall
+      - -with-rtsopts=-N
+    main: Main.hs
+    source-dirs:
+      - app
+    dependencies:
+      - base
+      - follow-file
+      - bytestring
+      - path
+      - text
+      - attoparsec
+      - attoparsec-path
+      - hinotify
+      - conduit
+      - conduit-combinators
+      - directory
