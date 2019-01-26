@@ -1,8 +1,10 @@
--- This file has been generated from package.yaml by hpack version 0.21.2.
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2237e4036e920a20255f1af7b7256b4210fd90eddba2b0938e9df217cf29ccb7
+-- hash: 5c69f4256d93bf88ba0bb9a030450e18ac696101d0a37eaf7636cd132d5fce57
 
 name:           follow-file
 version:        0.0.3
@@ -15,7 +17,6 @@ maintainer:     Athan Clark <athan.clark@gmail.com>
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
-cabal-version:  >= 1.10
 
 source-repository head
   type: git
